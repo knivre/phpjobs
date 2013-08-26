@@ -1,0 +1,13 @@
+phpjobs is a small set of scripts to start and manage php-cli jobs running in
+the background of a PHP-enabled HTTP server.
+It allows PHP scripts to run for longer than the usual time limitations: PHP's
+set_time_limit(), php-fpm's request_terminate_timeout, HTTPd/CGI time out.
+However, please note it cannot circumvent system-level measures such as
+mechanisms killing every process belonging to a hosted user if it ran for more
+than x seconds.
+It is designed with Linux in mind and will probably remain useless on Windows.
+Also, it requires a PHP setup able to execute commands (i.e. forget SafeMode).
+Last but not least, security is not implemented; it is considered part of the
+PHP configuration file. Typically, you will want to check for a secret key in
+headers or something like that. Do whatever you want to.
+By the way, this software is licensed under WTFPL.
