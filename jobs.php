@@ -34,7 +34,7 @@ switch ($_GET['action']) {
 		$result = jobs_kill();
 		break;
 	case 'output';
-		$result = jobs_output();
+		jobs_output();
 		break;
 	default:
 		exit_with_error('invalid action specified.');
@@ -184,9 +184,48 @@ function jobs_kill() {
 }
 
 /**
-	TODO
+	Unlike other jobs_* functions, this function does not return anything; it
+	simply delivers the .err or .out log file matching the provided type and
+	name before exiting.
 */
 function jobs_output() {
+	// restrict requests to GET (provide output data) and HEAD (typically: to
+	// retrieve Content-Length only).
+	restrict_http_methods(array('GET', 'HEAD'));
+	
+	// ensure a job was specified through GET parameters
+	$type = clean_get_parameter('type');
+	$name = clean_get_parameter('name');
+	if (!$type || !$name) {
+		exit_with_error('no job specified.');
+	}
+	
+	// determine what output must be delivered: either stderr or stdout (the
+	// default)
+	$output_type = clean_get_parameter('output');
+	$log_extension = ($output_type == 'err') ? 'err' : 'out';
+	
+	// check we have something to deliver
+	$log_filepath = state_file_path($type, $name, $log_extension);
+	if (!is_file($log_filepath)) {
+		exit_with_error('no logfile available.');
+	}
+	if (!is_readable($log_filepath)) {
+		exit_with_error('logfile unreachable.');
+	}
+	
+	// send Content-Length header
+	$log_filesize = @filesize($log_filepath);
+	if ($log_filesize === FALSE) {
+		exit_with_error('unable to determine file size.');
+	}
+	header(sprintf('Content-Length: %d', $log_filesize));
+	
+	// send output data
+	if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'GET') {
+		readfile($log_filepath);
+	}
+	exit();
 }
 
 /**

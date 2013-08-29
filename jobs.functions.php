@@ -46,6 +46,22 @@ function clean_get_parameter($parameter) {
 	return FALSE;
 }
 
+
+/**
+	Check the current HTTP method against those in \a $http_methods
+	@param $whitelist States whether \a $http_methods should be considered as a
+	white list or black list.
+*/
+function restrict_http_methods($http_methods, $whitelist = TRUE) {
+	if (!isset($_SERVER['REQUEST_METHOD'])) return;
+	
+	$match = in_array($_SERVER['REQUEST_METHOD'], $http_methods);
+	if ($whitelist != $match) {
+		header('HTTP/1.1 405 Method Not Allowed');
+		exit();
+	}
+}
+
 /**
 	@return the contents of the \a $result array formatted as required in the
 	"format" GET argument.
