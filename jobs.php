@@ -130,6 +130,8 @@ EOF;
 */
 function jobs_list() {
 	$jobs = read_all_state_files();
+	if ($jobs === FALSE) exit_with_error('unable to read state files.');
+	
 	$filter = clean_get_parameter('filter');
 	$token = clean_get_parameter('token');
 	if ($filter && $token) {
