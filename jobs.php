@@ -178,9 +178,39 @@ function jobs_status() {
 }
 
 /**
-	TODO
+	@return the output of the executed "kill" command.
 */
 function jobs_kill() {
+	// ensure a job was specified through GET parameters
+	$type = clean_get_parameter('type');
+	$name = clean_get_parameter('name');
+	if (!$type || !$name) {
+		exit_with_error('no job specified.');
+	}
+	
+	$job_state = read_state_file($type, $name);
+	if ($job_state === FALSE) {
+		exit_with_error('no such job.');
+	}
+	
+	if (!isset($job_state['state']) || $job_state['state'] != 'running') {
+		exit_with_error('job is not running.');
+	}
+	
+	if (!isset($job_state['worker-pid']) || (!preg_match('/^[0-9]+$/', $job_state['worker-pid']))) {
+		exit_with_error('unable to determine worker pid for this job.');
+	}
+	$pid = $job_state['worker-pid'];
+	
+	$final_signal = 'TERM';
+	$signal = clean_get_parameter('signal');
+	$matches = array();
+	if (preg_match('/^(([12]?[1-9]|3[01])|((?:SIG)?HUP|INT|QUIT|ILL|TRAP|ABRT|BUS|FPE|KILL|USR1|SEGV|USR2|PIPE|ALRM|TERM|STKFLT|CHLD|CONT|STOP|TSTP|TTIN|TTOU|URG|XCPU|XFSZ|VTALRM|PROF|WINCH|POLL|PWR|SYS))$/', $signal, $matches)) {
+		$final_signal = $matches[1];
+	}
+	
+	$result = array('kill_output' => `/bin/kill -${final_signal} ${pid} 2>&1`);
+	return $result;
 }
 
 /**
