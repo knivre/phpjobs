@@ -38,6 +38,7 @@ if (!include($job_path)) {
 }
 else {
 	$job_state_data['state'] = 'finished';
+	$job_state_data['finish_time'] = time();
 	// set default result attribute in case the job did not set it.
 	if (!isset($job_state_data['result'])) {
 		$job_state_data['result'] = 'ok';
@@ -91,7 +92,8 @@ function update_job_state($array) {
 		$GLOBALS['job_state_data'] = array(
 			'type' => $GLOBALS['type'],
 			'name' => $GLOBALS['name'],
-			'worker-pid' => getmypid()
+			'worker-pid' => getmypid(),
+			'last_update_time' => time(),
 		);
 	}
 	// update the global-scope object
@@ -100,4 +102,18 @@ function update_job_state($array) {
 	}
 	// update the state file accordingly
 	write_state_file($GLOBALS['job_state_data'], $GLOBALS['type'], $GLOBALS['name']);
+}
+
+/**
+	Set the job as freshly started; this will store the start time in the
+	adequate state file and change the job state to "running".
+	@see update_job_state
+*/
+function job_start() {
+	update_job_state(
+		array(
+			'state' => 'running',
+			'start_time' => time(),
+		)
+	);
 }
