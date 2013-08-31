@@ -169,7 +169,7 @@ function jobs_status() {
 		
 		$job_state['worker-status'] = 'running';
 		$job_state['proc_info'] = `/bin/ls -l --time-style="+%F %T" /proc/${pid}/exe /proc/${pid}/cwd /proc/${pid}/fd`;
-		$job_state['proc_cmdline'] = `cat /proc/${pid}/cmdline`;
+		$job_state['proc_cmdline'] = file_get_contents("/proc/${pid}/cmdline");
 		$env_vars = get_proc_environment($pid);
 		if ($env_vars !== FALSE) $job_state['proc_environ'] = $env_vars;
 		$job_state['proc_tree'] = "\n" . `/usr/bin/pstree -napuc ${pid}`;
