@@ -193,6 +193,88 @@ function read_all_state_files() {
 }
 
 /**
+	Try to remove all files related to a given job: state job, out and err log
+	files. Note: error messages are discarded.
+	@param $type Job type
+	@param $name Job name
+	@return FALSE if something went wrong, TRUE otherwise.
+*/
+function purge_job($type, $name) {
+	$return = TRUE;
+	foreach (array('state', 'out', 'err') as $extension) {
+		$return &= @unlink(state_file_path($type, $name, $extension));
+	}
+	return $return;
+}
+
+/**
+	@param $job_state Array describing the state of the job
+	@return the time the given job finished, or FALSE if it could not be
+	determined.
+*/
+function get_job_finish_time($job_state) {
+	$finish_time = FALSE;
+	
+	// get finish_time from state file
+	if (isset($job_state['finish_time'])) {
+		if (preg_match('/^[0-9]{10}$/', $job_state['finish_time'])) {
+			$finish_time = $job_state['finish_time'];
+		}
+	}
+	
+	// fallback on state file mtime if needed
+	if ($finish_time === FALSE) {
+		$state_mtime = filemtime(state_file_path($job_state['type'], $job_state['name']));
+		if ($state_mtime !== FALSE) $finish_time = $state_mtime;
+	}
+	
+	return $finish_time;
+}
+
+/**
+	Purge a given job if it is older than \a $max_age seconds.
+	@param $job_state Array describing the state of the job
+	@see get_job_finish_time()
+	@return FALSE if something went wrong, TRUE otherwise.
+*/
+function purge_job_if_older($job_state, $max_age) {
+	$finish_time = get_job_finish_time($job_state);
+	if ($finish_time === FALSE) return FALSE;
+	
+	if (time() > $finish_time + abs($max_age)) {
+		return purge_job($job_state['type'], $job_state['name']);
+	}
+	return TRUE;
+}
+
+/**
+	Purge former (i.e. finished) jobs according to the PURGE_FORMER_JOBS and
+	FORMER_JOBS_MAX_AGE constants.
+	Note that invalid state files (i.e. state files missing minimal fields) and
+	the associated log files will remain untouched.
+*/
+function purge_former_jobs() {
+	// do nothing unless PURGE_FORMER_JOBS was explicitly set to yes
+	if (constant('PURGE_FORMER_JOBS') != 'yes') return;
+	
+	// require FORMER_JOBS_MAX_AGE to be an integer value
+	if (!is_int(constant('FORMER_JOBS_MAX_AGE'))) return;
+	
+	$jobs = read_all_state_files();
+	if ($jobs === FALSE) return;
+	
+	foreach ($jobs as $job) {
+		// ensure all required fields are present
+		if (!isset($job['type'], $job['name'], $job['state'])) continue;
+		
+		// purge only finished jobs
+		if ($job['state'] != 'finished') continue;
+		
+		purge_job_if_older($job, constant('FORMER_JOBS_MAX_AGE'));
+	}
+}
+
+/**
 	@param $pid Process ID
 	@return an array holding environment variables of the given process.
 */

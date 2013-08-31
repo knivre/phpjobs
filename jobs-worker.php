@@ -46,6 +46,9 @@ else {
 	write_state_file($job_state_data, $type, $name);
 }
 
+// clean up old .state, .out and .err files
+purge_former_jobs();
+
 /**
 	@return an associative array, indexed with arguments names, holding
 	arguments values.

@@ -11,3 +11,7 @@ if (constant('JOBS_CONTEXT') == 'worker') {
 	// You may also want to ensure your worker script is executed with
 	// php-cli only... just a hint.
 }
+
+// By default, purge finished jobs that are more than five days old
+define('PURGE_FORMER_JOBS', 'yes');
+define('FORMER_JOBS_MAX_AGE', 5 * 24 * 3600);
