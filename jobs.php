@@ -81,19 +81,24 @@ function jobs_new() {
 	
 	// We want our job to be run by an independent php-cli process named "jobs-worker".
 	$worker_path = constant('JOBS_BASE_PATH') . '/jobs-worker.php';
+	
+	// We flee all shell escape issues by passing arguments as a base64
+	// serialized array.
+	foreach ($_GET as $key => $value) {
+		if (in_array($key, array('action', 'type', 'name', 'format'))) continue;
+		$args[$key] = $value;
+	}
+	$args = base64_encode(serialize($args));
+	
 	// compose the adequate PHP command with base arguments
 	$php_command = sprintf(
-		'%s %s %s %s ',
+		'%s %s %s %s %s',
 		constant('PHP_BIN_PATH'),
 		escapeshellarg($worker_path),
 		escapeshellarg('type=' . $type),
-		escapeshellarg('name=' . $name)
+		escapeshellarg('name=' . $name),
+		escapeshellarg('args=' . $args)
 	);
-	// add extra arguments
-	foreach ($_GET as $key => $value) {
-		if (in_array($key, array('action', 'type', 'name', 'format'))) continue;
-		$php_command .= ' ' . escapeshellarg($key . '=' . $value);
-	}
 	
 	// Redirect the stdout and stderr of the forked process to
 	// specific log files.

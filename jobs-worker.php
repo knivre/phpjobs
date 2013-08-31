@@ -62,7 +62,18 @@ function parse_cli_arguments() {
 		if (preg_match('/^([a-zA-Z0-9-_.]+)=(.+)?$/', $arg, $matches)) {
 			$arg_name = $matches[1];
 			$arg_value = $matches[2];
-			$arguments[$arg_name] = $arg_value;
+			if ($arg_name == 'args') {
+				$decoded_args = base64_decode($arg_value);
+				if ($decoded_args !== FALSE) {
+					$args_array = unserialize($decoded_args);
+					if (is_array($args_array)) {
+						$arguments = array_merge($arguments, $args_array);
+					}
+				}
+			}
+			else {
+				$arguments[$arg_name] = $arg_value;
+			}
 		}
 	}
 	return $arguments;
