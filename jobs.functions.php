@@ -157,7 +157,7 @@ function write_state_file($data, $type, $name) {
 	@return an array describing the state of the given job if the file reading
 	went perfectly, FALSE otherwise.
 */
-function read_state_file($ype, $name) {
+function read_state_file($type, $name) {
 	$state_file_path = state_file_path($type, $name);
 	return read_state_file_from_path($state_file_path);
 }
