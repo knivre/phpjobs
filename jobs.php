@@ -161,25 +161,23 @@ function jobs_status() {
 	// status basically extends the "list" action
 	$filtered_jobs = jobs_list();
 	foreach ($filtered_jobs as &$job_state) {
-		// this operation makes sense only for running jobs
-		if (!isset($job_state['state']) || $job_state['state'] != 'running') continue;
 		
 		// also, we need a valid worker PID
 		if (!isset($job_state['worker-pid'])) continue;
 		if (!preg_match('/^[0-9]+$/', $job_state['worker-pid'])) continue;
 		$pid = $job_state['worker-pid'];
 		
-		if (!file_exists("/proc/${pid}/exe")) {
-			$job_state['worker-status'] = 'not-running';
-			continue;
-		}
+		$is_running = file_exists("/proc/${pid}/exe");
+		$job_state['worker-status'] = $is_running ? 'running' : 'not-running';
 		
-		$job_state['worker-status'] = 'running';
-		$job_state['proc_info'] = `/bin/ls -l --time-style="+%F %T" /proc/${pid}/exe /proc/${pid}/cwd /proc/${pid}/fd`;
-		$job_state['proc_cmdline'] = file_get_contents("/proc/${pid}/cmdline");
-		$env_vars = get_proc_environment($pid);
-		if ($env_vars !== FALSE) $job_state['proc_environ'] = $env_vars;
-		$job_state['proc_tree'] = "\n" . `/usr/bin/pstree -napuc ${pid}`;
+		// details make sense only for running jobs
+		if ($is_running) {
+			$job_state['proc_info'] = `/bin/ls -l --time-style="+%F %T" /proc/${pid}/exe /proc/${pid}/cwd /proc/${pid}/fd`;
+			$job_state['proc_cmdline'] = file_get_contents("/proc/${pid}/cmdline");
+			$env_vars = get_proc_environment($pid);
+			if ($env_vars !== FALSE) $job_state['proc_environ'] = $env_vars;
+			$job_state['proc_tree'] = "\n" . `/usr/bin/pstree -napuc ${pid}`;
+		}
 	}
 	return $filtered_jobs;
 }
