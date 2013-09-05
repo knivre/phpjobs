@@ -249,16 +249,21 @@ function jobs_output() {
 		exit_with_error('logfile unreachable.');
 	}
 	
-	// send Content-Length header
+	// notify clients we accept partial content requests
+	header('Accept-Ranges: bytes');
+	
 	$log_filesize = @filesize($log_filepath);
 	if ($log_filesize === FALSE) {
 		exit_with_error('unable to determine file size.');
 	}
-	header(sprintf('Content-Length: %d', $log_filesize));
 	
 	// send output data
-	if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'GET') {
-		readfile($log_filepath);
+	if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'HEAD') {
+		// send Content-Length header
+		header(sprintf('Content-Length: %d', $log_filesize));
+	}
+	else {
+		deliver_file($log_filepath, $log_filesize);
 	}
 	exit();
 }

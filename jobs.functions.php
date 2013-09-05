@@ -311,3 +311,63 @@ function get_username() {
 		return trim(`/usr/bin/whoami`);
 	}
 }
+
+/**
+	Deliver \a $filepath according to the Range HTTP header.
+	Please note this function assumes the file exists and is readable.
+	@param $complete_size File size for $filepath
+	@return this function exits the script as part of its normal behaviour; it
+	returns only in case \a $filepath should be delivered completely.
+*/
+function deliver_file($filepath, $complete_size) {
+	if (isset($_SERVER['HTTP_RANGE'])) {
+		$matches = array();
+		// No, we do not handle all and every possible range variants, why do you ask?
+		if (!preg_match('/bytes=([0-9]+)-([0-9]+)?/', $_SERVER['HTTP_RANGE'], $matches)) {
+			header('HTTP/1.1 400 Bad Request');
+			exit();
+		}
+		else {
+			// read end of range, fix it if necessary
+			if (isset($matches[2])) {
+				$end = min($matches[2], $complete_size - 1);
+			}
+			else {
+				$end = $complete_size - 1;
+			}
+			// read and check start of range
+			$start = $matches[1];
+			if (($start > $end) || ($start > $complete_size - 1)) {
+				header('HTTP/1.1 416 Requested Range Not Satisfiable');
+				exit();
+			}
+			$buffer_size = 4096;
+			$bytes_to_read = $end - $start + 1;
+			header('HTTP/1.1 206 Partial Content');
+			header(sprintf('Content-Range: %d-%d/%d', $start, $end, $complete_size));
+			header(sprintf('Content-Length: %d', $bytes_to_read));
+			if ($bytes_to_read) {
+				$fd = fopen($filepath, 'r');
+				if (!$fd) {
+					header('HTTP/1.1 500 Internal Server Error');
+					exit();
+				}
+				@fseek($fd, $start);
+				while ($bytes_to_read >= $buffer_size) {
+					print fread($fd, $buffer_size);
+					$bytes_to_read -= $buffer_size;
+				}
+				if ($bytes_to_read) {
+					print fread($fd, $bytes_to_read);
+				}
+				@fclose($fd);
+				exit();
+			}
+		}
+	}
+	else {
+		header('debug: ' . sprintf('%d-%d', $start, $end));
+		header(sprintf('Content-Length: %d', $complete_size));
+		readfile($filepath);
+	}
+}
