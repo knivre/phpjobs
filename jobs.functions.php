@@ -67,14 +67,14 @@ function restrict_http_methods($http_methods, $whitelist = TRUE) {
 	"format" GET argument.
 */
 function format_result($result) {
-	$required_format = trim($_GET['format']);
+	$required_format = isset($_GET['format']) ? trim($_GET['format']) : '';
 	if ($required_format == 'json' && function_exists('json_encode')) {
 		return json_encode($result);
 	}
 	else if ($required_format == 'yaml' && function_exists('yaml_emit')) {
 		return yaml_emit($result);
 	}
-	else if ($required_forat == 'print_r') {
+	else if ($required_format == 'print_r') {
 		return print_r($result, TRUE);
 	}
 	else if ($required_format == 'var_export') {

@@ -84,6 +84,7 @@ function jobs_new() {
 	
 	// We flee all shell escape issues by passing arguments as a base64
 	// serialized array.
+	$args = array();
 	foreach ($_GET as $key => $value) {
 		if (in_array($key, array('action', 'type', 'name', 'format'))) continue;
 		$args[$key] = $value;
