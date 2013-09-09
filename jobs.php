@@ -65,6 +65,8 @@ function new_job_name() {
 	@return data about the newly created job.
 */
 function jobs_new() {
+	restrict_http_methods(array('GET'));
+	
 	$result = array();
 	
 	$type = new_job_type();
@@ -135,6 +137,8 @@ EOF;
 	parameters.
 */
 function jobs_list() {
+	restrict_http_methods(array('GET'));
+	
 	$jobs = read_all_state_files();
 	if ($jobs === FALSE) exit_with_error('unable to read state files.');
 	
@@ -159,6 +163,8 @@ function jobs_list() {
 	process along with technical data about this process.
 */
 function jobs_status() {
+	restrict_http_methods(array('GET'));
+	
 	// status basically extends the "list" action
 	$filtered_jobs = jobs_list();
 	foreach ($filtered_jobs as &$job_state) {
@@ -187,6 +193,8 @@ function jobs_status() {
 	@return the output of the executed "kill" command.
 */
 function jobs_kill() {
+	restrict_http_methods(array('GET'));
+	
 	// ensure a job was specified through GET parameters
 	$type = clean_get_parameter('type');
 	$name = clean_get_parameter('name');
