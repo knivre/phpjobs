@@ -320,7 +320,8 @@ function get_username() {
 	returns only in case \a $filepath should be delivered completely.
 */
 function deliver_file($filepath, $complete_size) {
-	if (isset($_SERVER['HTTP_RANGE'])) {
+	// we simply ignore any Range header if the file is actually empty
+	if ($complete_size && isset($_SERVER['HTTP_RANGE'])) {
 		$matches = array();
 		// No, we do not handle all and every possible range variants, why do you ask?
 		if (!preg_match('/bytes=([0-9]+)-([0-9]+)?/', $_SERVER['HTTP_RANGE'], $matches)) {
