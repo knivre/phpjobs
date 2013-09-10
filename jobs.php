@@ -65,7 +65,7 @@ function new_job_name() {
 	@return data about the newly created job.
 */
 function jobs_new() {
-	restrict_http_methods(array('GET'));
+	restrict_http_methods(array('GET', 'POST'));
 	
 	$result = array();
 	
@@ -102,6 +102,21 @@ function jobs_new() {
 		escapeshellarg('name=' . $name),
 		escapeshellarg('args=' . $args)
 	);
+	
+	// Store POST data on the filesystem so they are available through a simple
+	// ".in" regular file. Note they are *not* passed to the worker through
+	// stdin.
+	if (count($_POST)) {
+		$in_file = state_file_path($type, $name, 'in');
+		$in = array('POST' => $_POST);
+		if (count($_FILES)) {
+			$in['FILES'] = $_FILES;
+		}
+		$in_writing = file_put_contents($in_file, serialize($in));
+		if ($in_writing === FALSE) {
+			exit_with_error('unable to store POST data');
+		}
+	}
 	
 	// Redirect the stdout and stderr of the forked process to
 	// specific log files.

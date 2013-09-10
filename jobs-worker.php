@@ -98,6 +98,36 @@ function exit_with_error($error_message) {
 }
 
 /**
+	Restore POST data stored in ".in" file matching \a $job_type and
+	\a $job_name.
+	@return -1 if no POST data were provided, TRUE if data were restored as
+	expected or FALSE if anything went wrong.
+*/
+function restore_post_data($job_type = NULL, $job_name = NULL) {
+	if (is_null($job_type) && is_null($job_name)) {
+		$job_type = $GLOBALS['type'];
+		$job_name = $GLOBALS['name'];
+	}
+	
+	$in_file = state_file_path($job_type, $job_name, 'in');
+	if (!file_exists($in_file)) return -1;
+	
+	$data = file_get_contents($in_file);
+	if ($data === FALSE) return FALSE;
+	
+	$data = @unserialize($data);
+	if ($data === FALSE) return FALSE;
+	
+	if (!isset($data['POST'])) return FALSE;
+	
+	$_POST = $data['POST'];
+	if (isset($data['FILES'])) {
+		$_FILES = $data['FILES'];
+	}
+	return TRUE;
+}
+
+/**
 	Update the $job_state_data global array with the contents of \a $array
 	then update the state file.
 */
