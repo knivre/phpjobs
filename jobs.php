@@ -157,9 +157,25 @@ function jobs_list() {
 	$jobs = read_all_state_files();
 	if ($jobs === FALSE) exit_with_error('unable to read state files.');
 	
-	$filter = clean_get_parameter('filter');
-	$token = clean_get_parameter('token');
-	if ($filter && $token) {
+	// check "filter" and "token" GET parameters before iterating through
+	// filter0/token0, filter1/token1, etc.
+	for ($i = -1; TRUE; ++ $i) {
+		// do not attempt to filter an empty array of jobs
+		if (!count($jobs)) break;
+		
+		// get current filter
+		$filter_param = 'filter' . ($i > -1 ? $i : '');
+		$filter = clean_get_parameter($filter_param);
+		// stop at the first non-provided filter...
+		if ($filter === FALSE) break;
+		
+		// get current token
+		$token_param = str_replace('filter', 'token', $filter_param);
+		print "checking token for ${filter_param} / ${token_param}";
+		// ... or stop at the first non-provided token
+		if (!isset($_GET[$token_param])) break;
+		
+		$token = $_GET[$token_param];
 		$jobs = array_filter(
 			$jobs,
 			function($state) use ($filter, $token) {
@@ -167,6 +183,7 @@ function jobs_list() {
 			}
 		);
 	}
+	
 	return $jobs;
 }
 
