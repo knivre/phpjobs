@@ -6,6 +6,7 @@
 	  * job_start() should be called at the beginning of the treatment
 	  * update_job_state() provides a convenient way to update $job_state_data and
 	sync its contents to the job state file;
+	  * restore_post_data() will restore any $_POST and $_FILES data
 	  * write_error() provides a convenient way to log an error message
 	The following global variables are also available:
 	  * $arguments, an array providing received parameters
