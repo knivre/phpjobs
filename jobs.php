@@ -157,8 +157,9 @@ function jobs_list() {
 	$jobs = read_all_state_files();
 	if ($jobs === FALSE) exit_with_error('unable to read state files.');
 	
-	// check "filter" and "token" GET parameters before iterating through
-	// filter0/token0, filter1/token1, etc.
+	$job_filter = new JobFilter();
+	// check "filter", "token" and "op" GET parameters before iterating through
+	// filter0/token0/op0, filter1/token1/op1, etc.
 	for ($i = -1; TRUE; ++ $i) {
 		// do not attempt to filter an empty array of jobs
 		if (!count($jobs)) break;
@@ -170,18 +171,17 @@ function jobs_list() {
 		if ($filter === FALSE) break;
 		
 		// get current token
-		$token_param = str_replace('filter', 'token', $filter_param);
-		print "checking token for ${filter_param} / ${token_param}";
+		$token_param = 'token' . ($i > -1 ? $i : '');
 		// ... or stop at the first non-provided token
 		if (!isset($_GET[$token_param])) break;
-		
 		$token = $_GET[$token_param];
-		$jobs = array_filter(
-			$jobs,
-			function($state) use ($filter, $token) {
-				return (isset($state[$filter]) && stripos($state[$filter], $token) !== FALSE);
-			}
-		);
+		
+		// get current operator
+		$op_param = 'op' . ($i > -1 ? $i : '');
+		$op = isset($_GET[$op_param]) ? $_GET[$op_param] : '';
+		
+		$job_filter->setFilter($filter, $token, $op);
+		$jobs = array_filter($jobs, array($job_filter, 'filter'));
 	}
 	
 	return $jobs;

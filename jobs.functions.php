@@ -372,3 +372,54 @@ function deliver_file($filepath, $complete_size) {
 		readfile($filepath);
 	}
 }
+
+/**
+	Simple class to match a particular field of a given job state against an
+	operator and another value.
+*/
+class JobFilter {
+	/**
+		@return TRUE if \a $job matches this filter.
+	*/
+	public function filter($job) {
+		// the field used to filter must exist, whatever the operand
+		if (!isset($job[$this->filter])) return FALSE;
+		$lval = $job[$this->filter];
+		
+		switch ($this->op) {
+			case 'lt':
+				return $lval < $this->token;
+			case 'le':
+				return $lval <= $this->token;
+			case 'gt':
+				return $lval > $this->token;
+			case 'ge':
+				return $lval >= $this->token;
+			case 'eq':
+				return $lval == $this->token;
+			case 'ne':
+				return $lval != $this->token;
+			case 'm':
+			default:
+				return stripos($lval, $this->token) !== FALSE;
+		}
+	}
+	
+	/**
+		@param $f Filter, i.e. name of the field that will be inspected by this
+		filter object.
+		@param $t Token, i.e. second operand used when inspecting the \a $f
+		field.
+		@param $op Operator applied to \a $f and \a $t to determine whether a
+		job matches this filter.
+	*/
+	public function setFilter($f, $t, $o = 'm') {
+		$this->filter = $f;
+		$this->token = $t;
+		$this->op = $o;
+	}
+	
+	public $filter;
+	public $token;
+	public $op;
+};
