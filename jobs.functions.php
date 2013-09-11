@@ -399,6 +399,8 @@ class JobFilter {
 				return $lval == $this->token;
 			case 'ne':
 				return $lval != $this->token;
+			case 'nm':
+				return stripos($lval, $this->token) === FALSE;
 			case 'm':
 			default:
 				return stripos($lval, $this->token) !== FALSE;
