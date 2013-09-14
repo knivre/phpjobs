@@ -1,0 +1,193 @@
+PHPJobs provides  a very simple protocol  to create and manage  asynchronous PHP
+jobs. Most actions can be performed through regular HTTP GET requests.
+
+1. Generic usage
+Regarding  server-side configuration,  all HTTP  requests should  be handled  by
+"jobs.php" -- take this into account in case you wish to add URL rewriting rules
+to your HTTP server.
+Parameters are passed  in the query string, which should  be formatted according
+to the server-side PHP configuration (e.g. arg_separator.input).
+
+Example of HTTP request to run a *new* job of type "test" named "firstjob":
+GET /path/to/jobs.php?action=new&type=test&name=firstjob HTTP/1.1
+
+2. Common parameters
+2.1 the "action" parameter
+The "action" parameter is mandatory.  Depending on its value, various additional
+parameters  can be  passed.  The recognized  value are  detailed  later in  this
+document.
+
+2.2 the "format" parameter
+The "format" parameter can be passed whatever the action. It controls the format
+of PHPJobs responses. The recognized value are:
+  * json (require the json_encode function)
+  * yaml (require the yaml_emit function)
+  * print_r
+  * var_export
+In case  none of these values  are provided, PHPJobs  will fall back to  its own
+text format, which is similar to YAML  but should not be considered suitable for
+automated parsing.
+
+3. Common behaviours
+3.1 Notion of "simple string"
+This document uses the  notion of "simple string". A simple  string is a regular
+characters string which contains only:
+  * lowercase  and uppercase  letters from  A to Z  (no diacritic,  no non-latin
+    characters);
+  * digits from 0 to 9;
+  * dashes (-);
+  * underscores (_).
+Especially, job types and names are always simple strings.
+
+3.2 HTTP methods
+Unless stated otherwise, all PHPJobs  actions expect GET requests. Other methods
+will lead to 405 Method Not Allowed responses.
+
+3.3 Errors
+Most errors  lead to  a 412  "Precondition failed" HTTP  response, along  with a
+X-jobs-error header describing the encountered error.
+
+3. Action-specific documentation
+
+3.1 Overview
+The  "new" action  enables  the creation  of  a  new job.  The  job is  launched
+immediately: PHPJobs  is *not*  a scheduler.  The job is  handled by  a "worker"
+php-cli-based process.  The state of the  job can then be  retrieved through the
+"list" and  "status" actions.  Their output (stdout,  stderr) is  made available
+through the "output" action.  Last, the "kill" action may be  used to send POSIX
+signals (typically:  SIGINT, SIGKILL,  SIGSTOP, SIGCONT)  to the  running worker
+process.
+
+3.2 The "new" action
+
+3.2.1 Request
+This action expects two parameters:
+ * type:  mandatory, defines the kind  of job to  launch; it should be  a simple
+   string
+ * name: optional,  defines the basename (i.e. prefix) of  the resulting job; it
+   should be a simple string
+PHPJobs will always generate  a bunch of random characters used  as job name. If
+provided, the "name" parameter will prefix that random part.
+Any other  GET parameter (except  "format" and  "action") can be  provided. They
+will be passed to the worker process via command line arguments.
+This action  may also be  triggered through a POST  request; POST data  are also
+made available to the worker process (via a different mechanism though).
+
+3.2.2 Response
+The HTTP response provides the following values:
+  * job-type: type of job required;
+  * job-name: final name for the required job.
+
+3.3 The "list" action
+
+3.3.1 Response
+This action returns multiple key/value pairs describing each known job. The most
+common keys are:
+  * type: job type;
+  * name: job name;
+  *  state:   job  state,   typically  "acknowledged-by-worker",   "running"  or
+    "finished" -- jobs may use extra, custom states;
+  * worked-pid: Process ID of the worker process running or having run the job;
+  * start_time: timestamp the job started;
+  * finish_time: timestamp the job finished;
+  * last_update_time: timestamp of last state update.
+
+3.3.2 Request
+This action  does not expect any  mandatory parameter. By default,  it will list
+all  known jobs,  whatever their  type,  name or  state. This  behaviour can  be
+changed by specifying filtering parameters.
+A filter consists of three parameter:
+  * filter: key to analyze; if the key does not appear within the job state, the
+    job is filtered out; it should be a simple string.
+  * token: value the filtered key is compared  to; it should be a simple string.
+  * op: type of comparison applied between the filtered key and the token.
+
+The following operators are available:
+  * m: stands for  "match"; this is the default operation,  applied when no "op"
+    parameter or  an invalid value is  provided; it simply checks  whether token
+    appears within key. This operator is case-insensitive.
+  * nm: stands for "not match": this is the exact opposite of "m".
+  * eq: stands for "equal"; requires token to be equal to key.
+  * ne: stands for "not equal; this is the exact opposite of "eq".
+  * lt: stands for "less than".
+  * le: stands for "less or equal".
+  * gt: stands for "greater than".
+  * ge: stands for "greater or equal".
+
+Several filters can be applied by providing the following parameters:
+  * filter, token and optionally op
+  * filter0, token0 and optionally op0
+  * filter1, token1 and optionally op1
+  * filter2, token2 and optionally op2
+  * etc.
+
+Note: providing e.g. filter2 & token2  with filter4 & token4 without filter3 and
+token3 will only take filter2 & token2 into account.
+
+3.4 The "status" action
+
+3.4.1 Request
+This action works the same way as the "list" action.
+
+3.4.2 Response
+This action intends to  provide the same output as the  "list" action along with
+extra keys reflecting the current state  of each job. However, this applies only
+to jobs having a "worker-pid" key (by default, all jobs provide this key).
+All of these jobs will feature a  "worker-status" key set to either "running" or
+"not-running" depending on the worker status.
+All running jobs will also feature the following keys:
+  * proc_info: ls-like listing of various files related to the worker process;
+  * proc_cmdline: command line the worker process was started with;
+  * proc_environ: environment variables of the worker process;
+  * proc_tree: pstree-like display of the worker process.
+
+3.5 The "kill" action
+
+3.5.1 Request
+This actions sends a Unix signal to the worker process of a given job.
+It expects two mandatory parameters:
+  * job-type: job type; it should be a simple string.
+  * job-name: job name; it should be a simple string.
+These parameters are used to determine which job should be sent a signal.
+A  third paramater  named "signal"  may also  be provided;  it can  either be  a
+numerical value between 1 and 31 included or  the name of the singal to be SENT,
+all caps; examples of acceptable values include:
+  * 9
+  * 15
+  * HUP
+  * SIGQUIT
+  * KILL
+  * SIGCONT
+In case  this parameter  was not provided,  PHPjobs will fall  back to  the TERM
+signal.
+
+3.5.2 Response
+The HTTP  response simply provides the  output (stdout and stderr  mixed) of the
+kill command that was executed through the "kill_output" key.
+
+3.6 The "output" action
+
+3.6.1 Request
+This action returns the output of a given job.
+It expects two mandatory parameters:
+  * job-type: job type; it should be a simple string.
+  * job-name: job name; it should be a simple string.
+These parameters are used to determine which job output is required.
+A  third parameter  named "output"  may be  provided to  indicate which  kind of
+output should be returned:
+  * "out" will ake PHPJobs return the stdout output;
+  * "err" will ake PHPJobs return the stderr output.
+It is not possible to retrieve both in a single request.
+
+This action may also be triggered through a HEAD HTTP request; this is useful to
+check the size of the output without actually fetching it.
+GET HTTP requests  also accept partial content requests, i.e.  requests having a
+"Range" HTTP header. However, the implementation remains limited:
+  * only bytes ranges are implemented
+  * multiple ranges are not supported
+  * "Range: bytes=-42" is not supported either
+
+3.6.2 Response
+Unlike  others, the  output action  does not  take the  "format" parameter  into
+account.  Instead, the  required output  is delivered  as the  body of  the HTTP
+response.
