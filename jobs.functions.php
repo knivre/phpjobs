@@ -367,7 +367,6 @@ function deliver_file($filepath, $complete_size) {
 		}
 	}
 	else {
-		header('debug: ' . sprintf('%d-%d', $start, $end));
 		header(sprintf('Content-Length: %d', $complete_size));
 		readfile($filepath);
 	}
