@@ -12,6 +12,8 @@
 	  * $arguments, an array providing received parameters
 	  * $job_state_data, the array describing the current job state.
 */
+// Ensure this file is not executed directly
+if (@constant('JOBS_CONTEXT') != 'worker') exit();
 
 // this will update the adequate state file with start time.
 job_start();
