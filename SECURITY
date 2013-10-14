@@ -1,0 +1,66 @@
+PHPJobs provides a simple API to run jobs on a remote PHP-enabled host. As such,
+most use cases require to think about security.
+PHPJobs does not  enforce any security policy at all.  Instead, it invites users
+to write their own security controls in its configuration file.
+A simple, typical way to implement security  consists in checking the value of a
+HTTP  header, e.g.  checking an  expected token  was provided,  or dealing  with
+complete sessions.
+PHPJobs provides  no mechanism of  its own  to prevent potential  attackers from
+reading data exchanged  between clients and servers. Therefore, a  first step to
+achieve security consists in relying on HTTPS instead of HTTP.
+
+In  case you  have no  idea of  how to  implement your  security, PHPJobs  still
+provides a Native Security Mechanism, also known as "NSM".
+
+
+This mechanism relies on a secret (usually referred as "password") known by both
+server and client. This password is never transmitted "as is" on the network.
+Instead,  it is  used to  sign client  HTTP requests  so the  server can  ensure
+neither the query string  nor the POST data were modified on  their way from the
+client  to the  server. The  signature  is provided  to the  server through  the
+X-PHPJobs-Security  HTTP header.  Upon  reception of  each  client request,  the
+server computes the signature  on its own and denies access to  the client if it
+does not match the provided one.
+
+However, this  kind of  signed requests  is subject to  replay attacks,  i.e. an
+attacker  having eavesdropped  network traffic  could  send again  the same  job
+request (without being  able to modify it though) along  with the same signature
+to the same server, leading to potential intrusions.
+
+That is why client requests also provide the following HTTP headers:
+
+X-PHPJobs-Host, which is  supposed to reflect the target machine  the request is
+intended to. It is checked server-side upon reception of each client request. By
+default, PHPJobs  attempts to match the  provided value against the  hostname of
+the machine. One can provide either the FQDN (as known to the host) or the basic
+host name (typically the first part of the FQDN). PHPJobs may also be configured
+to  accept only  a given  whitelist of  hosts. This  whitelist may  even include
+regular  expressions. This  should prevent  attackers from  replaying a  request
+against another server accepting the same secret.
+
+X-PHPJobs-Timestamp, which must  be a standard Unix timestamp followed  by a dot
+followed by the number of the request within that second, formatted with leading
+zeros so  it takes exactly  four digits (e.g. 1381769851.0003).  Request numbers
+must start  from 0001.  It is  assumed the  induced ratio  of 9999  requests per
+second "ought to be enough for everyone". Upon reception of each client request,
+the server  compares the  timestamp against  the current date  and time.  If the
+provided  timestamp  is  more  than  10  seconds  old  (this  threshold  can  be
+configured), the server denies access to the client, assuming it tried to replay
+an old  request. This should prevent  attackers from replaying a  client request
+against the same server. However, there  remains a 10-seconds interval where the
+replay could work.
+
+X-PHPJobs-Session is  a session  id. Unlike most  web-based applications,  it is
+crafted client-side. It  is expected to begin  with the host name  of the client
+(though this  is actually  neither checked  nor enforced),  followed by  a dash,
+followed by a 24 characters long  identifier made of letters (both uppercase and
+lowercase are accepted) and digits (e.g. darkstar-R1FsooOFjQSNeJFrAQUQFIZx). The
+server uses this session identifier to  store a single piece of information: the
+value of the latest timestamp header received within the session. Upon reception
+of each client request, the server checks whether the session already exists. If
+so, it  retrieves the latest  known timestamp for  this session. If  the freshly
+provided  one is  not strictly  greater than  the known  one, the  server denies
+access to the  client, assuming it tried  to replay an old  request. This should
+prevent attackers from replaying a client  request against the same server, even
+if they  manage to  strike less than  10 seconds after  the initial  request was
+sent.

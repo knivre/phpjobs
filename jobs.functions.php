@@ -424,3 +424,213 @@ class JobFilter {
 	public $token;
 	public $op;
 };
+
+/**
+	Apply NSM (native security mechanism).
+	@param $conf Array holding NSM configuration directives.
+	TODO cleanup of old sessions?
+*/
+function nsm_apply($conf) {
+	// Arbitrarily considered the request is received when this function is
+	// called.
+	$conf['request_time'] = time();
+	
+	// The native security mechanism relies on four HTTP headers.
+	// They must be present...
+	nsm_require_headers(array('HOST', 'SECURITY', 'SESSION', 'TIMESTAMP'));
+	
+	// ... and valid.
+	nsm_validate_host_header($conf);
+	$session = nsm_validate_session_header($conf);
+	nsm_validate_timestamp_header($session, $conf);
+	nsm_validate_security_header();
+	
+	// Once headers are verified, compute the security hash.
+	$hash = nsm_hash($conf);
+	
+	// Compare this hash against the provided one.
+	if ($hash != $_SERVER['HTTP_X_PHPJOBS_SECURITY']) {
+		header('HTTP/1.1 403 Forbidden');
+		exit();
+	}
+	else {
+		header('X-PHPJobs-Security: allowed');
+	}
+}
+
+/**
+	Ensure all headers required by the NSM are present.
+*/
+function nsm_require_headers($headers) {
+	if (!is_array($headers)) $headers = array($headers);
+	foreach ($headers as $header_name) {
+		$full_header_name = 'HTTP_X_PHPJOBS_' . strtoupper($header_name);
+		if (!isset($_SERVER[$full_header_name]) || !strlen($_SERVER[$full_header_name])) {
+			exit_with_error('Missing security header');
+		}
+	}
+}
+
+/**
+	Validate the X-PHPJobs-Host header.
+*/
+function nsm_validate_host_header($conf) {
+	// if enabled, try to validate the provided host against the system hostname
+	if ($conf['accept_real_hostname']) {
+		$real_hostname = constant('JOBS_HOSTNAME');
+		if ($_SERVER['HTTP_X_PHPJOBS_HOST'] == $real_hostname) return TRUE;
+		
+		$matches = array();
+		if (preg_match('/^[^.]$\./', $real_hostname, $matches)) {
+			if ($_SERVER['HTTP_X_PHPJOBS_HOST'] == $matches[1]) return TRUE;
+		}
+	}
+	
+	// try to validate the provided host against a list of regular strings
+	foreach ($conf['accepted_hosts'] as $accepted_host) {
+		if ($_SERVER['HTTP_X_PHPJOBS_HOST'] == $accepted_host) return TRUE;
+	}
+	
+	// try to validate the provided host against a list of regular expressions
+	foreach ($conf['accepted_hosts_regexps'] as $accepted_hosts_regexp) {
+		if (preg_match($accepted_hosts_regexp, $_SERVER['HTTP_X_PHPJOBS_HOST'])) {
+			return TRUE;
+		}
+	}
+	
+	exit_with_error('Malformed security header');
+}
+
+/**
+	Validate the X-PHPJobs-Host header.
+*/
+function nsm_validate_session_header($conf) {
+	$matches = array();
+	if (preg_match('/^([A-Za-z0-9][A-Za-z0-9-]{0,254})-([A-Za-z0-9]{24})$/', $_SERVER['HTTP_X_PHPJOBS_SESSION'], $matches)) {
+		$dirpath = $conf['nsm_session_dir'] . DIRECTORY_SEPARATOR . $matches[1];
+		return array(
+			'session' => $_SERVER['HTTP_X_PHPJOBS_SESSION'],
+			'hostname' => $matches[1],
+			'id' => $matches[2],
+			'dirpath' => $dirpath,
+			'filepath' => $dirpath . DIRECTORY_SEPARATOR . $matches[2] . '.session'
+		);
+	}
+	
+	exit_with_error('Malformed security header');
+}
+
+/**
+	@return the last known timestamp for the given \a $session.
+	TODO file locking
+*/
+function nsm_get_session_timestamp($session) {
+	mkpath($session['dirpath']);
+	if (!is_dir($session['dirpath'])) {
+		exit_with_error('unable to create session directory ' . $session['dirpath'] );
+	}
+	
+	if (file_exists($session['filepath'])) {
+		$session_contents = file_get_contents($session['filepath']);
+		if (!nsm_validate_timestamp($session_contents)) {
+			exit_with_error('invalid session');
+		}
+		return $session_contents;
+	}
+	return 0;
+}
+
+/**
+	Set \a $timestamp as last known timestamp for \a $session.
+	TODO file locking
+*/
+function nsm_set_session_timestamp($session, $timestamp) {
+	mkpath($session['dirpath']);
+	if (!is_dir($session['dirpath'])) {
+		exit_with_error('unable to create session directory');
+	}
+	
+	$tmp_filepath = $session['filepath'] . pseudo_random_string();
+	if (file_put_contents($tmp_filepath, $timestamp) === FALSE) {
+		exit_with_error('unable to write session');
+	}
+	if (!rename($tmp_filepath, $session['filepath'])) {
+		exit_with_error('unable to write session');
+	}
+}
+
+/**
+	Validate the X-PHPJobs-Timestamp header.
+*/
+function nsm_validate_timestamp_header($session, $conf) {
+	// the provided timestamp header must look like a timestamp
+	if (!nsm_validate_timestamp($_SERVER['HTTP_X_PHPJOBS_TIMESTAMP'])) {
+		exit_with_error('Malformed security header');
+	}
+	
+	// the provided timestamp must not be older than max_age
+	$timestamp = array_shift(explode('.', $_SERVER['HTTP_X_PHPJOBS_TIMESTAMP']));
+	if ($conf['request_time'] - $timestamp > $conf['max_age']) {
+		exit_with_error('provided timestamp is too old (trying to reuse former request?)');
+	}
+	
+	// retrieve the timestamp of the last request for the provided session
+	$session_timestamp = nsm_get_session_timestamp($session);
+	
+	if ($session_timestamp !== 0) {
+		// get rid of the dot in both timestamps
+		$session_timestamp = str_replace('.', '', $session_timestamp);
+		$user_timestamp = str_replace('.', '', $_SERVER['HTTP_X_PHPJOBS_TIMESTAMP']);
+		
+		// the provided timestamp must be strictly greater than the current one for this session
+		if ($user_timestamp <= $session_timestamp) {
+			exit_with_error('provided timestamp is too old for this session (trying to reuse former request?)');
+		}
+	}
+	
+	// update last known timestamp for this session
+	nsm_set_session_timestamp($session, $_SERVER['HTTP_X_PHPJOBS_TIMESTAMP']);
+	
+	return TRUE;
+}
+
+/**
+	@return TRUE if \a $timestamp matches the expected format, false otherwise.
+*/
+function nsm_validate_timestamp($timestamp) {
+	return preg_match('/^[0-9]{10}\.[0-9]{4}$/', $timestamp);
+}
+
+/**
+	Validate the X-PHPJobs-Security header.
+*/
+function nsm_validate_security_header() {
+	if (preg_match('/^[0-9a-f]{64}$/', $_SERVER['HTTP_X_PHPJOBS_SECURITY'])) {
+		return TRUE;
+	}
+	
+	exit_with_error('Malformed security header');
+}
+
+/**
+	@return the SHA256 hash of all sent data.
+	This hash is meant to be compared with the X-PHPJobs-Security header.
+*/
+function nsm_hash($conf) {
+	$hash_ctx = hash_init('sha256');
+	
+	// Data are concatenated following a particular syntax before being hashed
+	$hash_string = sprintf(
+		'%s:%s@%s?%s&%s&',
+		$_SERVER['HTTP_X_PHPJOBS_SESSION'],
+		$_SERVER['HTTP_X_PHPJOBS_TIMESTAMP'],
+		$_SERVER['HTTP_X_PHPJOBS_HOST'],
+		$_SERVER['QUERY_STRING'],
+		$conf['secret']
+	);
+	
+	hash_update($hash_ctx, $hash_string);
+	// hash POST data without allocating a potentially huge string for them
+	hash_update_file($hash_ctx, 'php://input');
+	return hash_final($hash_ctx);
+}
