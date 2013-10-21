@@ -481,7 +481,7 @@ function nsm_validate_host_header($conf) {
 		if ($_SERVER['HTTP_X_PHPJOBS_HOST'] == $real_hostname) return TRUE;
 		
 		$matches = array();
-		if (preg_match('/^[^.]$\./', $real_hostname, $matches)) {
+		if (preg_match('/^([^.]+)\./', $real_hostname, $matches)) {
 			if ($_SERVER['HTTP_X_PHPJOBS_HOST'] == $matches[1]) return TRUE;
 		}
 	}
