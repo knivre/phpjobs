@@ -569,7 +569,7 @@ function nsm_validate_timestamp_header($session, $conf) {
 	}
 	
 	// the provided timestamp must not be older than max_age
-	$timestamp = array_shift(explode('.', $_SERVER['HTTP_X_PHPJOBS_TIMESTAMP']));
+	$timestamp = @array_shift(explode('.', $_SERVER['HTTP_X_PHPJOBS_TIMESTAMP']));
 	if ($conf['request_time'] - $timestamp > $conf['max_age']) {
 		exit_with_error('provided timestamp is too old (trying to reuse former request?)');
 	}
