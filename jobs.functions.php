@@ -5,6 +5,33 @@
 */
 
 /**
+	Ensure we can work without PHP's magic quotes interfering in the process.
+*/
+function handle_php_magic_quotes() {
+	// Do nothing if the "get_magic_quotes_gpc" function does not exist.
+	if (!function_exists('get_magic_quotes_gpc')) return;
+
+	// What follows is a mere copy/paste from
+	// http://www.php.net/manual/en/security.magicquotes.disabling.php
+	if (get_magic_quotes_gpc()) {
+		$process = array(&$_GET, &$_POST, &$_COOKIE, &$_REQUEST);
+		while (list($key, $val) = each($process)) {
+			foreach ($val as $k => $v) {
+				unset($process[$key][$k]);
+				if (is_array($v)) {
+					$process[$key][stripslashes($k)] = $v;
+					$process[] = &$process[$key][stripslashes($k)];
+				}
+				else {
+					$process[$key][stripslashes($k)] = stripslashes($v);
+				}
+			}
+		}
+		unset($process);
+	}
+}
+
+/**
 	Ensure \a $path is an existing directory by creating missing directories
 	if needed.
 	@return FALSE if \a $path could not be created, TRUE otherwise.

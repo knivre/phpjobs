@@ -7,6 +7,9 @@
 // Ensure generic functions are available.
 require_once(constant('JOBS_BASE_PATH') . '/jobs.functions.php');
 
+// Ensure as soon as possible this obsolete mechanism will not interfere.
+handle_php_magic_quotes();
+
 // Retrieve username and hostname to compose "identifiers".
 define('JOBS_USERNAME', get_username());
 define('JOBS_HOSTNAME', php_uname('n'));
