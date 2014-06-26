@@ -46,7 +46,12 @@ print format_result($result);
 	@return The type of the job to be created, according to GET parameters.
 */
 function new_job_type() {
-	return clean_get_parameter('type');
+	if (isset($_GET['type'])) {
+		$cleaned_type = preg_replace('/[^a-zA-Z0-9_]/', '', trim($_GET['type']));
+		if (!strlen($cleaned_type)) return FALSE;
+		return $cleaned_type;
+	}
+	return FALSE;
 }
 
 /**
