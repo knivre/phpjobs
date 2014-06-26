@@ -201,16 +201,73 @@ function read_state_file_from_path($state_file_path) {
 }
 
 /**
+	Detect whether a set of filters actually refer to a single job.
+	@param $filters An array of job filters.
+	@param $suffix Suffix to use for the state file
+	@return the theoretical path to the state file when there are only one
+	'eq' filter on the job type and one 'eq' filter on the job name, i.e. when
+	we can directly compute the path to the state file. Note that the existence
+	and readability of the state file is not checked by this function. Otherwise
+	return FALSE.
+*/
+function filters_refer_to_single_job($filters, $suffix = 'state') {
+	if (count($filters) != 2) return FALSE;
+
+	$type = $name = NULL;
+	foreach ($filters as $filter) {
+		if ($filter->op != 'eq') return FALSE;
+
+		if ($filter->filter == 'type') {
+			$type = $filter->token;
+		}
+		else if ($filter->filter == 'name') {
+			$name = $filter->token;
+		}
+	}
+
+	if (is_null($type) || is_null($name)) return FALSE;
+	return state_file_path($type, $name, $suffix);
+}
+
+/**
+	@param $filters An array of level 1 job filters (i.e. filters on type or
+	name).
 	@return an associative array, indexed by .state filenames, holding the
 	states of all known jobs, or FALSE in case something went wrong.
 */
-function read_all_state_files() {
+function read_all_state_files($filters = array()) {
+	$states = array();
+
+	// In order to avoid calling scandir() (which can take quite some time), we
+	// intercept an apparently specific but actually very common case: when
+	// filters refer to a single job.
+	$single_file = filters_refer_to_single_job($filters);
+	if ($single_file) {
+		$data = read_state_file_from_path($single_file);
+		if ($data !== FALSE) {
+			$states[basename($single_file)] = $data;
+		}
+		return $states;
+	}
+
 	$files = scandir(constant('JOBS_STATE_DIR'));
 	if ($files === FALSE) return FALSE;
-	
-	$states = array();
+
+	$matches = array();
 	foreach ($files as $file) {
-		if (preg_match('/\.state$/', $file)) {
+		// Ignore directory entries which are not job state files and compute
+		// job name and job type from filename.
+		// Note: this regexp must match the code from state_file_path().
+		if (preg_match('/^([^-]+)-([^.]+)\.job\.state$/', $file, $matches)) {
+			// Create a fake, state-like array in order to ...
+			$pseudo_job = array('type' => $matches[1], 'name' => $matches[2]);
+			// ... apply provided filters. This is important in order to reduce
+			// the numbers of state files that will be opened, read and parsed,
+			// especially since we already paid the cost of a scandir().
+			foreach ($filters as $filter) {
+				// Ignore the file as soon as a filter does not match
+				if (!$filter->filter($pseudo_job)) continue 2;
+			}
 			$data = read_state_file_from_path(constant('JOBS_STATE_DIR') . '/' . $file);
 			if ($data === FALSE) continue;
 			$states[$file] = $data;

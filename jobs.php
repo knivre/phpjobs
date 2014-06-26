@@ -158,17 +158,14 @@ EOF;
 */
 function jobs_list() {
 	restrict_http_methods(array('GET'));
-	
-	$jobs = read_all_state_files();
-	if ($jobs === FALSE) exit_with_error('unable to read state files.');
-	
-	$job_filter = new JobFilter();
+
+	// First, we will store all received filters into two arrays:
+	$level1_filters = array(); // level 1: filters on job type or job name
+	$level2_filters = array(); // level 2: all other filters
+
 	// check "filter", "token" and "op" GET parameters before iterating through
 	// filter0/token0/op0, filter1/token1/op1, etc.
 	for ($i = -1; TRUE; ++ $i) {
-		// do not attempt to filter an empty array of jobs
-		if (!count($jobs)) break;
-		
 		// get current filter
 		$filter_param = 'filter' . ($i > -1 ? $i : '');
 		$filter = clean_get_parameter($filter_param);
@@ -185,10 +182,27 @@ function jobs_list() {
 		$op_param = 'op' . ($i > -1 ? $i : '');
 		$op = isset($_GET[$op_param]) ? $_GET[$op_param] : '';
 		
+		$job_filter = new JobFilter();
 		$job_filter->setFilter($filter, $token, $op);
-		$jobs = array_filter($jobs, array($job_filter, 'filter'));
+		if ($filter == 'type' || $filter == 'name') {
+			$level1_filters[] = $job_filter;
+		}
+		else {
+			$level2_filters[] = $job_filter;
+		}
 	}
-	
+
+	// Load all state files that match level 1 filters.
+	$jobs = read_all_state_files($level1_filters);
+	if ($jobs === FALSE) exit_with_error('unable to read state files.');
+
+	// Apply level 2 filters to them.
+	if (count($jobs)) {
+		foreach ($level2_filters as $job_filter) {
+			$jobs = array_filter($jobs, array($job_filter, 'filter'));
+		}
+	}
+
 	return $jobs;
 }
 
