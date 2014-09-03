@@ -194,7 +194,7 @@ function read_state_file($type, $name) {
 	reading went perfectly, FALSE otherwise.
 */
 function read_state_file_from_path($state_file_path) {
-	$read = file_get_contents($state_file_path);
+	$read = @file_get_contents($state_file_path);
 	if ($read === FALSE) return FALSE;
 	
 	return unserialize($read);
@@ -363,7 +363,7 @@ function purge_former_jobs() {
 	@return an array holding environment variables of the given process.
 */
 function get_proc_environment($pid) {
-	$environ_contents = file_get_contents("/proc/${pid}/environ");
+	$environ_contents = @file_get_contents("/proc/${pid}/environ");
 	if ($environ_contents === FALSE) return FALSE;
 	
 	$env_vars = array();
@@ -615,7 +615,7 @@ function nsm_get_session_timestamp($session) {
 	}
 	
 	if (file_exists($session['filepath'])) {
-		$session_contents = file_get_contents($session['filepath']);
+		$session_contents = @file_get_contents($session['filepath']);
 		if (!nsm_validate_timestamp($session_contents)) {
 			exit_with_error('invalid session');
 		}
